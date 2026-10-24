@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kuis Petualangan Semut</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #87CEEB; /* Sky blue */
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: manipulation;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            height: 100vh;
+            max-height: 800px;
+            background: linear-gradient(to bottom, #a7f3d0, #34d399); /* Greenish gradient */
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        .heading-font {
+            font-family: 'Fredoka One', cursive;
+        }
+        .btn-option {
+            transition: all 0.2s ease;
+        }
+        .btn-option:active {
+            transform: scale(0.95);
+        }
+        
+        /* Animations */
+        @keyframes bounceIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in {
+            animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* Confetti Canvas */
+        #confettiCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="confettiCanvas"></canvas>
+
+        <!-- START SCREEN -->
+        <div id="startScreen" class="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-30 transition-opacity duration-300">
+            <div class="bg-white p-6 rounded-3xl shadow-2xl text-center mx-4 max-w-sm border-8 border-green-400">
+                <div class="text-6xl mb-4">🐘🐜</div>
+                <h1 class="text-3xl heading-font text-green-600 mb-2">Kuis Gajah & Semut</h1>
+                <p class="text-gray-700 mb-6 text-lg font-bold">
+                    Bantu Semut menjawab pertanyaan untuk mendapatkan daun! 🍃
+                </p>
+                <button id="startBtn" class="bg-green-500 hover:bg-green-600 text-white heading-font text-2xl py-4 px-8 rounded-full shadow-[0_6px_0_#166534] transform transition active:translate-y-2 active:shadow-[0_0px_0_#166534] w-full">
+                    Mulai Main!
+                </button>
+            </div>
+        </div>
+
+        <!-- GAME SCREEN -->
+        <div id="gameScreen" class="hidden flex-col h-full z-10 p-4">
+            <!-- Top Bar -->
+            <div class="flex justify-between items-center mb-6 mt-4">
+                <div class="bg-white px-4 py-2 rounded-full shadow-md border-4 border-green-400">
+                    <span class="text-xl font-black text-gray-600">Soal <span id="questionCount">1</span>/5</span>
+                </div>
+                <div class="bg-white px-4 py-2 rounded-full shadow-md border-4 border-yellow-400 flex items-center gap-2">
+                    <span class="text-2xl">🍃</span>
+                    <span id="scoreDisplay" class="text-2xl heading-font text-green-600">0</span>
+                </div>
+            </div>
+
+            <!-- Question Box -->
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-4 border-blue-400 mb-8 min-h-[160px] flex items-center justify-center text-center">
+                <h2 id="questionText" class="text-2xl md:text-3xl heading-font text-blue-800 leading-snug">
+                    Pertanyaan akan muncul di sini?
+                </h2>
+            </div>
+
+            <!-- Options -->
+            <div class="flex flex-col gap-4 mt-auto mb-10">
+                <button id="optionA" class="btn-option bg-yellow-300 border-4 border-yellow-500 rounded-3xl p-4 shadow-[0_6px_0_#ca8a04] flex items-center justify-center gap-4 text-2xl heading-font text-gray-800">
+                    <span id="textA">Opsi A</span>
+                </button>
+                <button id="optionB" class="btn-option bg-blue-300 border-4 border-blue-500 rounded-3xl p-4 shadow-[0_6px_0_#2563eb] flex items-center justify-center gap-4 text-2xl heading-font text-gray-800">
+                    <span id="textB">Opsi B</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- FEEDBACK OVERLAY (Correct/Wrong) -->
+        <div id="feedbackOverlay" class="hidden absolute inset-0 z-20 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+            <div id="feedbackBox" class="bg-white p-8 rounded-3xl shadow-2xl text-center transform scale-0 border-8">
+                <div id="feedbackEmoji" class="text-7xl mb-4">🌟</div>
+                <h2 id="feedbackText" class="text-4xl heading-font">Benar!</h2>
+            </div>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="gameOverScreen" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-30">
+            <div class="bg-white p-6 rounded-3xl shadow-2xl text-center mx-4 max-w-sm border-8 border-yellow-400 animate-bounce-in">
+                <h2 class="text-4xl heading-font text-blue-600 mb-2">Hebat Sekali!</h2>
+                <p class="text-gray-700 mb-2 text-xl font-bold">Kamu berhasil mengumpulkan:</p>
+                <div class="flex items-center justify-center gap-2 mb-6">
+                    <span class="text-5xl">🍃</span>
+                    <span id="finalScore" class="text-6xl heading-font text-green-600">0</span>
+                </div>
+                <p id="finalMessage" class="text-lg text-gray-600 font-bold mb-6">Semut sangat berterima kasih!</p>
+                <button id="restartBtn" class="bg-blue-500 hover:bg-blue-600 text-white heading-font text-2xl py-4 px-8 rounded-full shadow-[0_6px_0_#1d4ed8] transform transition active:translate-y-2 active:shadow-[0_0px_0_#1d4ed8] w-full">
+                    Main Lagi!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Game Data (Questions suitable for Grade 1 & 2) ---
+        const allQuestions = [
+            {
+                question: "Siapa hewan yang suka menyombongkan diri di hutan?",
+                options: [
+                    { text: "Gajah 🐘", isCorrect: true },
+                    { text: "Semut 🐜", isCorrect: false }
+                ]
+            },
+            {
+                question: "Hewan apa yang bertubuh sangat kecil tapi rajin?",
+                options: [
+                    { text: "Semut 🐜", isCorrect: true },
+                    { text: "Gajah 🐘", isCorrect: false }
+                ]
+            },
+            {
+                question: "Di mana Semut menggigit Gajah agar dia jera?",
+                options: [
+                    { text: "Di telinga 👂", isCorrect: true },
+                    { text: "Di ekornya 🐈", isCorrect: false }
+                ]
+            },
+            {
+                question: "Sikap Gajah pada awal cerita adalah...",
+                options: [
+                    { text: "Sombong 😤", isCorrect: true },
+                    { text: "Baik Hati 😊", isCorrect: false }
+                ]
+            },
+            {
+                question: "Setelah digigit Semut, apa yang dilakukan Gajah?",
+                options: [
+                    { text: "Menangis & Minta Maaf 😭", isCorrect: true },
+                    { text: "Malah Tertawa 😂", isCorrect: false }
+                ]
+            }
+        ];
+
+        // --- State Variables ---
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let questions = [];
+
+        // --- DOM Elements ---
+        const startScreen = document.getElementById('startScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const feedbackOverlay = document.getElementById('feedbackOverlay');
+        const feedbackBox = document.getElementById('feedbackBox');
+        
+        const questionText = document.getElementById('questionText');
+        const optionABtn = document.getElementById('optionA');
+        const textA = document.getElementById('textA');
+        const optionBBtn = document.getElementById('optionB');
+        const textB = document.getElementById('textB');
+        
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const questionCount = document.getElementById('questionCount');
+        
+        const feedbackEmoji = document.getElementById('feedbackEmoji');
+        const feedbackText = document.getElementById('feedbackText');
+        
+        const finalScore = document.getElementById('finalScore');
+        const finalMessage = document.getElementById('finalMessage');
+
+        // --- Event Listeners ---
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        
+        optionABtn.addEventListener('click', () => handleAnswer(0));
+        optionBBtn.addEventListener('click', () => handleAnswer(1));
+
+        // --- Functions ---
+        function startGame() {
+            // Reset state
+            score = 0;
+            currentQuestionIndex = 0;
+            scoreDisplay.innerText = score;
+            
+            // Randomize questions order a bit (optional, keep it linear for story telling)
+            questions = [...allQuestions];
+
+            // Hide screens
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex');
+
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            // Check if game over
+            if (currentQuestionIndex >= questions.length) {
+                endGame();
+                return;
+            }
+
+            const currentQ = questions[currentQuestionIndex];
+            
+            // Update UI
+            questionCount.innerText = currentQuestionIndex + 1;
+            questionText.innerText = currentQ.question;
+            
+            textA.innerText = currentQ.options[0].text;
+            textB.innerText = currentQ.options[1].text;
+
+            // Reset button styles (remove correct/wrong colors from previous)
+            optionABtn.disabled = false;
+            optionBBtn.disabled = false;
+        }
+
+        function handleAnswer(selectedIndex) {
+            // Prevent multiple clicks
+            optionABtn.disabled = true;
+            optionBBtn.disabled = true;
+
+            const currentQ = questions[currentQuestionIndex];
+            const isCorrect = currentQ.options[selectedIndex].isCorrect;
+
+            if (isCorrect) {
+                score++;
+                scoreDisplay.innerText = score;
+                showFeedback(true);
+                shootConfetti();
+            } else {
+                showFeedback(false);
+                // Shake the screen slightly
+                gameScreen.classList.add('animate-shake');
+                setTimeout(() => gameScreen.classList.remove('animate-shake'), 400);
+            }
+
+            // Wait a bit, then next question
+            setTimeout(() => {
+                feedbackOverlay.classList.add('hidden');
+                feedbackBox.classList.remove('animate-bounce-in');
+                
+                currentQuestionIndex++;
+                loadQuestion();
+            }, 1800); // 1.8 seconds delay so kids can read the feedback
+        }
+
+        function showFeedback(isCorrect) {
+            feedbackOverlay.classList.remove('hidden');
+            feedbackBox.classList.add('animate-bounce-in');
+
+            if (isCorrect) {
+                feedbackBox.className = "bg-white p-8 rounded-3xl shadow-2xl text-center transform scale-0 border-8 border-green-500 animate-bounce-in";
+                feedbackEmoji.innerText = "🎉";
+                feedbackText.innerText = "Benar!";
+                feedbackText.className = "text-5xl heading-font text-green-500";
+            } else {
+                feedbackBox.className = "bg-white p-8 rounded-3xl shadow-2xl text-center transform scale-0 border-8 border-red-500 animate-bounce-in";
+                feedbackEmoji.innerText = "😅";
+                feedbackText.innerText = "Kurang Tepat";
+                feedbackText.className = "text-4xl heading-font text-red-500";
+            }
+        }
+
+        function endGame() {
+            gameScreen.classList.add('hidden');
+            gameScreen.classList.remove('flex');
+            gameOverScreen.classList.remove('hidden');
+            
+            finalScore.innerText = score;
+            
+            if (score === 5) {
+                finalMessage.innerText = "Sempurna! Kamu sangat pintar! 🌟";
+            } else if (score >= 3) {
+                finalMessage.innerText = "Bagus sekali! Semut senang! 😊";
+            } else {
+                finalMessage.innerText = "Wah, ayo coba lagi! Kamu pasti bisa! 💪";
+            }
+
+            // Big confetti for game over
+            shootConfetti(100);
+        }
+
+        // --- Simple Confetti Particle System ---
+        const canvas = document.getElementById('confettiCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function shootConfetti(amount = 40) {
+            const colors = ['#fce7f3', '#fef08a', '#bbf7d0', '#bfdbfe', '#f87171', '#fbbf24'];
+            for (let i = 0; i < amount; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2 + 100, // Starts a bit lower center
+                    r: Math.random() * 6 + 4,
+                    dx: Math.random() * 10 - 5,
+                    dy: Math.random() * -10 - 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    tilt: Math.random() * 10,
+                    tiltAngle: 0,
+                    tiltAngleInc: (Math.random() * 0.07) + 0.05
+                });
+            }
+        }
+
+        function drawConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, index) => {
+                p.tiltAngle += p.tiltAngleInc;
+                p.y += (Math.cos(p.tiltAngle) + 1 + p.r / 2) / 2;
+                p.x += Math.sin(p.tiltAngle) * 2;
+                p.dy += 0.1; // gravity
+                p.y += p.dy;
+
+                ctx.beginPath();
+                ctx.lineWidth = p.r;
+                ctx.strokeStyle = p.color;
+                ctx.moveTo(p.x + p.tilt + p.r, p.y);
+                ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r);
+                ctx.stroke();
+
+                // Remove off-screen particles
+                if (p.y > canvas.height) {
+                    particles.splice(index, 1);
+                }
+            });
+            requestAnimationFrame(drawConfetti);
+        }
+        
+        // Start animation loop
+        drawConfetti();
+
+    </script>
+</body>
+</html>
